@@ -15,6 +15,32 @@ import (
 	"github.com/dmcleish91/matterops/internal/webhook"
 )
 
+// botNotifier implements service.Notifier by posting messages via the bot.
+type botNotifier struct {
+	bot *bot.Bot
+}
+
+func (n *botNotifier) DeployStarted(svc string) error {
+	n.bot.PostMessage(context.Background(), fmt.Sprintf("Deploying `%s`...", svc))
+	return nil
+}
+
+func (n *botNotifier) DeploySucceeded(svc string, output string) error {
+	n.bot.PostMessage(context.Background(), fmt.Sprintf("Deploy of `%s` succeeded.", svc))
+	return nil
+}
+
+func (n *botNotifier) DeployFailed(svc string, step string, output string) error {
+	msg := fmt.Sprintf("Deploy of `%s` failed at step `%s`.\n```\n%s\n```", svc, step, output)
+	n.bot.PostMessage(context.Background(), msg)
+	return nil
+}
+
+func (n *botNotifier) DeployQueued(svc string) error {
+	n.bot.PostMessage(context.Background(), fmt.Sprintf("Deploy queued for `%s`.", svc))
+	return nil
+}
+
 // App wires all components together.
 type App struct {
 	cfg           *config.Config
@@ -55,11 +81,13 @@ func New(configPath string, envPath string) (*App, error) {
 		return nil, fmt.Errorf("creating manager: %w", err)
 	}
 
-	webhookHandler := webhook.NewHandler(env.WebhookSecret, a)
+	whHandler := webhook.NewHandler(env.WebhookSecret, a)
+	webhookMux := http.NewServeMux()
+	webhookMux.Handle("POST /webhook/github", whHandler)
 
 	a.webhookSrv = &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Webhook.Port),
-		Handler:      webhookHandler,
+		Handler:      webhookMux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -83,6 +111,9 @@ func New(configPath string, envPath string) (*App, error) {
 		Handler: a,
 	})
 
+	// Wire up the notifier now that both manager and bot exist.
+	a.manager.SetNotifier(&botNotifier{bot: a.bot})
+
 	return a, nil
 }
 
@@ -102,6 +133,12 @@ func (a *App) Run(ctx context.Context) error {
 		log.Printf("dashboard server listening on %s", a.dashboardSrv.Addr)
 		if err := a.dashboardSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("dashboard server error: %v", err)
+		}
+	}()
+
+	go func() {
+		if err := a.bot.Run(ctx); err != nil {
+			log.Printf("bot error: %v", err)
 		}
 	}()
 

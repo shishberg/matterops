@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -88,6 +89,12 @@ func NewManager(services []config.ServiceConfig, notifier Notifier) (*Manager, e
 	return m, nil
 }
 
+// SetNotifier sets the notifier after construction. This allows resolving the
+// chicken-and-egg dependency between Manager and the bot-backed Notifier.
+func (m *Manager) SetNotifier(n Notifier) {
+	m.notifier = n
+}
+
 // Stop shuts down all workers and backends.
 func (m *Manager) Stop() {
 	m.cancel()
@@ -126,9 +133,14 @@ func (m *Manager) GetServiceConfig(name string) (config.ServiceConfig, bool) {
 }
 
 // FindServiceByRepo returns a service config matching the given repo and branch.
+// repo may be "org/name" (as sent by GitHub webhooks) or "github.com/org/name"
+// (as stored in service configs). Both forms are matched by normalizing the
+// github.com/ prefix away before comparing.
 func (m *Manager) FindServiceByRepo(repo, branch string) (config.ServiceConfig, bool) {
+	normalizedRepo := strings.TrimPrefix(repo, "github.com/")
 	for _, ms := range m.services {
-		if ms.config.Repo == repo && ms.config.Branch == branch {
+		cfgRepo := strings.TrimPrefix(ms.config.Repo, "github.com/")
+		if cfgRepo == normalizedRepo && ms.config.Branch == branch {
 			return ms.config, true
 		}
 	}
@@ -153,7 +165,13 @@ func (m *Manager) RequestDeploy(name string) error {
 	ms.state.Status = "deploying"
 	ms.mu.Unlock()
 
-	ms.deployCh <- struct{}{}
+	// Non-blocking send: if the channel already holds a pending request (because
+	// the worker is busy and another caller raced us), that's fine — the worker
+	// will pick it up.
+	select {
+	case ms.deployCh <- struct{}{}:
+	default:
+	}
 
 	if m.notifier != nil {
 		_ = m.notifier.DeployQueued(name)

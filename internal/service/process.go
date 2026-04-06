@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type ProcessBackend struct {
@@ -12,6 +13,7 @@ type ProcessBackend struct {
 	workingDir string
 	mu         sync.Mutex
 	process    *exec.Cmd
+	done       chan struct{} // closed when the process exits
 }
 
 func NewProcessBackend(cmd string, workingDir string) *ProcessBackend {
@@ -29,7 +31,7 @@ func (p *ProcessBackend) Start(ctx context.Context) error {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", p.cmd)
+	cmd := exec.Command("sh", "-c", p.cmd)
 	cmd.Dir = p.workingDir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -38,9 +40,12 @@ func (p *ProcessBackend) Start(ctx context.Context) error {
 	}
 
 	p.process = cmd
+	done := make(chan struct{})
+	p.done = done
 
 	go func() {
 		_ = cmd.Wait()
+		close(done)
 	}()
 
 	return nil
@@ -48,21 +53,35 @@ func (p *ProcessBackend) Start(ctx context.Context) error {
 
 func (p *ProcessBackend) Stop(ctx context.Context) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	if !p.isRunning() {
+		p.mu.Unlock()
 		return nil
 	}
 
 	pgid, err := syscall.Getpgid(p.process.Process.Pid)
 	if err != nil {
+		p.mu.Unlock()
 		return err
 	}
 	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+		p.mu.Unlock()
 		return err
 	}
 
+	done := p.done
 	p.process = nil
+	p.done = nil
+	p.mu.Unlock()
+
+	// Wait for the process to exit, with a fallback force-kill after 5 seconds.
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		<-done
+	}
+
 	return nil
 }
 
