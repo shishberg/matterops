@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -44,6 +45,21 @@ type Manager struct {
 	wg       sync.WaitGroup
 }
 
+// backendForConfig selects the appropriate backend based on the service config.
+func backendForConfig(cfg config.ServiceConfig) Backend {
+	if cfg.Process.Cmd != "" {
+		return NewProcessBackend(cfg.Process.Cmd, cfg.WorkingDir)
+	}
+	if cfg.ServiceName != "" {
+		if runtime.GOOS == "darwin" {
+			return NewLaunchctlBackend(cfg.ServiceName)
+		}
+		return NewSystemctlBackend(cfg.ServiceName)
+	}
+	// Fallback
+	return NewProcessBackend("echo no backend configured", cfg.WorkingDir)
+}
+
 // NewManager creates a Manager for the given service configs.
 func NewManager(services []config.ServiceConfig, notifier Notifier) (*Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -55,12 +71,7 @@ func NewManager(services []config.ServiceConfig, notifier Notifier) (*Manager, e
 	}
 
 	for _, svc := range services {
-		var backend Backend
-		if svc.Process.Cmd != "" {
-			backend = NewProcessBackend(svc.Process.Cmd, svc.WorkingDir)
-		} else {
-			backend = NewProcessBackend("true", svc.WorkingDir)
-		}
+		backend := backendForConfig(svc)
 
 		ms := &managedService{
 			config:   svc,

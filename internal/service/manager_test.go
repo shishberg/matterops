@@ -106,3 +106,35 @@ func TestManager_RestartUnknown(t *testing.T) {
 	err := m.RestartService("nonexistent")
 	assert.Error(t, err)
 }
+
+func TestManager_BackendSelection(t *testing.T) {
+	dir := t.TempDir()
+	tests := []struct {
+		name   string
+		config config.ServiceConfig
+	}{
+		{
+			name: "process backend",
+			config: config.ServiceConfig{
+				Name: "proc-svc", WorkingDir: dir,
+				Process: config.ProcessConfig{Cmd: "sleep 60"},
+			},
+		},
+		{
+			name: "service_name selects system backend",
+			config: config.ServiceConfig{
+				Name: "sys-svc", WorkingDir: dir,
+				ServiceName: "myunit",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := service.NewManager([]config.ServiceConfig{tt.config}, nil)
+			require.NoError(t, err)
+			defer m.Stop()
+			_, ok := m.GetState(tt.config.Name)
+			assert.True(t, ok)
+		})
+	}
+}
