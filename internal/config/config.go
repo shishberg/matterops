@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,6 +26,23 @@ type Config struct {
 	Webhook     WebhookConfig    `yaml:"webhook"`
 	Dashboard   DashboardConfig  `yaml:"dashboard"`
 	ServicesDir string           `yaml:"services_dir"`
+}
+
+type Env struct {
+	MattermostToken string
+	WebhookSecret   string
+}
+
+func LoadEnv(path string) (*Env, error) {
+	vars, err := godotenv.Read(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading .env: %w", err)
+	}
+
+	return &Env{
+		MattermostToken: vars["MATTERMOST_TOKEN"],
+		WebhookSecret:   vars["GITHUB_WEBHOOK_SECRET"],
+	}, nil
 }
 
 func LoadConfig(path string) (*Config, error) {

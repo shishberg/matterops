@@ -52,3 +52,23 @@ mattermost:
 	assert.Equal(t, 8081, cfg.Dashboard.Port)
 	assert.Equal(t, "./services", cfg.ServicesDir)
 }
+
+func TestLoadEnv(t *testing.T) {
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	err := os.WriteFile(envPath, []byte(`MATTERMOST_TOKEN=test-token-123
+GITHUB_WEBHOOK_SECRET=whsec_test456
+`), 0644)
+	require.NoError(t, err)
+
+	env, err := config.LoadEnv(envPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-token-123", env.MattermostToken)
+	assert.Equal(t, "whsec_test456", env.WebhookSecret)
+}
+
+func TestLoadEnvMissing(t *testing.T) {
+	_, err := config.LoadEnv("/nonexistent/.env")
+	assert.Error(t, err)
+}
