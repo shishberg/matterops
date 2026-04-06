@@ -1,3 +1,3 @@
 module github.com/dmcleish91/matterops
 
-go 1.25.0
+go 1.26.0
