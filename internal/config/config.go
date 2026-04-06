@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -43,6 +45,57 @@ func LoadEnv(path string) (*Env, error) {
 		MattermostToken: vars["MATTERMOST_TOKEN"],
 		WebhookSecret:   vars["GITHUB_WEBHOOK_SECRET"],
 	}, nil
+}
+
+type ProcessConfig struct {
+	Cmd string `yaml:"cmd"`
+}
+
+type ServiceConfig struct {
+	Name                string        `yaml:"-"`
+	Branch              string        `yaml:"branch"`
+	Repo                string        `yaml:"repo"`
+	WorkingDir          string        `yaml:"working_dir"`
+	Deploy              []string      `yaml:"deploy"`
+	Process             ProcessConfig `yaml:"process"`
+	ServiceName         string        `yaml:"service_name"`
+	RequireConfirmation bool          `yaml:"require_confirmation"`
+}
+
+func LoadServices(dir string) ([]ServiceConfig, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading services dir: %w", err)
+	}
+
+	var services []ServiceConfig
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := filepath.Ext(entry.Name())
+		if ext != ".yaml" && ext != ".yml" {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("reading service file %s: %w", entry.Name(), err)
+		}
+
+		var svc ServiceConfig
+		if err := yaml.Unmarshal(data, &svc); err != nil {
+			return nil, fmt.Errorf("parsing service file %s: %w", entry.Name(), err)
+		}
+
+		if svc.Name == "" {
+			svc.Name = strings.TrimSuffix(entry.Name(), ext)
+		}
+
+		services = append(services, svc)
+	}
+
+	return services, nil
 }
 
 func LoadConfig(path string) (*Config, error) {

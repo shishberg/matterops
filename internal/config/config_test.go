@@ -72,3 +72,83 @@ func TestLoadEnvMissing(t *testing.T) {
 	_, err := config.LoadEnv("/nonexistent/.env")
 	assert.Error(t, err)
 }
+
+func TestLoadServices(t *testing.T) {
+	dir := t.TempDir()
+	svcDir := filepath.Join(dir, "services")
+	require.NoError(t, os.MkdirAll(svcDir, 0755))
+
+	err := os.WriteFile(filepath.Join(svcDir, "myapp.yaml"), []byte(`
+branch: main
+repo: "github.com/org/myapp"
+working_dir: "/opt/myapp"
+deploy:
+  - "git pull origin main"
+  - "make build"
+process:
+  cmd: "./bin/myapp"
+`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(svcDir, "api.yaml"), []byte(`
+branch: main
+repo: "github.com/org/api"
+working_dir: "/opt/api"
+deploy:
+  - "git pull origin main"
+  - "go build -o bin/api ."
+service_name: api
+require_confirmation: true
+`), 0644)
+	require.NoError(t, err)
+
+	services, err := config.LoadServices(svcDir)
+	require.NoError(t, err)
+	require.Len(t, services, 2)
+
+	api := findService(services, "api")
+	require.NotNil(t, api)
+	assert.Equal(t, "api", api.Name)
+	assert.Equal(t, "main", api.Branch)
+	assert.Equal(t, "github.com/org/api", api.Repo)
+	assert.Equal(t, "api", api.ServiceName)
+	assert.True(t, api.RequireConfirmation)
+
+	myapp := findService(services, "myapp")
+	require.NotNil(t, myapp)
+	assert.Equal(t, "myapp", myapp.Name)
+	assert.Equal(t, "./bin/myapp", myapp.Process.Cmd)
+	assert.False(t, myapp.RequireConfirmation)
+}
+
+func findService(services []config.ServiceConfig, name string) *config.ServiceConfig {
+	for i := range services {
+		if services[i].Name == name {
+			return &services[i]
+		}
+	}
+	return nil
+}
+
+func TestLoadServicesEmptyDir(t *testing.T) {
+	dir := t.TempDir()
+	svcDir := filepath.Join(dir, "services")
+	require.NoError(t, os.MkdirAll(svcDir, 0755))
+
+	services, err := config.LoadServices(svcDir)
+	require.NoError(t, err)
+	assert.Empty(t, services)
+}
+
+func TestLoadServicesIgnoresNonYaml(t *testing.T) {
+	dir := t.TempDir()
+	svcDir := filepath.Join(dir, "services")
+	require.NoError(t, os.MkdirAll(svcDir, 0755))
+
+	err := os.WriteFile(filepath.Join(svcDir, "README.md"), []byte("not a service"), 0644)
+	require.NoError(t, err)
+
+	services, err := config.LoadServices(svcDir)
+	require.NoError(t, err)
+	assert.Empty(t, services)
+}
