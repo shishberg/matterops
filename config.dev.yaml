@@ -1,0 +1,11 @@
+mattermost:
+  url: "http://localhost:8065"
+  channel: "ops"
+
+webhook:
+  port: 8080
+
+dashboard:
+  port: 8081
+
+services_dir: "./services"
