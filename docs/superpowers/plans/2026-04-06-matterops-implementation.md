@@ -6,7 +6,7 @@
 
 **Architecture:** Monolithic single-binary with goroutines. Central `service.Manager` coordinates all actions. Three service backends (process, systemctl, launchctl) behind a common interface. Channel-based deploy queue per service.
 
-**Tech Stack:** Go 1.22+, `gopkg.in/yaml.v3`, `github.com/joho/godotenv`, `github.com/stretchr/testify`, `github.com/mattermost/mattermost/server/public/model` (Mattermost client), `html/template`, `net/http`
+**Tech Stack:** Go 1.26+, `gopkg.in/yaml.v3`, `github.com/joho/godotenv`, `github.com/stretchr/testify`, `github.com/mattermost/mattermost/server/public/model` (Mattermost client), `html/template`, `net/http`
 
 ---
 

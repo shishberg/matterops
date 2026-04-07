@@ -14,7 +14,7 @@ A single-binary service orchestration bot for a single server. Manages deploymen
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.26+
 - A Mattermost server with a bot account
 - (Optional) golangci-lint for linting
 
