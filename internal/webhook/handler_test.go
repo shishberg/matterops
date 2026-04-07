@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/webhook"
+	"github.com/shishberg/matterops/internal/webhook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

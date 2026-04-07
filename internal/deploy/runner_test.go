@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/deploy"
+	"github.com/shishberg/matterops/internal/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

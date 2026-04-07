@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/app"
+	"github.com/shishberg/matterops/internal/app"
 	"github.com/stretchr/testify/require"
 )
 

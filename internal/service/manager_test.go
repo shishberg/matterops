@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/config"
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

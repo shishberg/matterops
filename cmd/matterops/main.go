@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dmcleish91/matterops/internal/app"
+	"github.com/shishberg/matterops/internal/app"
 )
 
 func main() {

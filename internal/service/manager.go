@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/config"
-	"github.com/dmcleish91/matterops/internal/deploy"
+	"github.com/shishberg/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/deploy"
 )
 
 // Notifier receives deploy lifecycle events.

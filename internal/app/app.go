@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/bot"
-	"github.com/dmcleish91/matterops/internal/config"
-	"github.com/dmcleish91/matterops/internal/dashboard"
-	"github.com/dmcleish91/matterops/internal/service"
-	"github.com/dmcleish91/matterops/internal/webhook"
+	"github.com/shishberg/matterops/internal/bot"
+	"github.com/shishberg/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/dashboard"
+	"github.com/shishberg/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/webhook"
 )
 
 // botNotifier implements service.Notifier by posting messages via the bot.

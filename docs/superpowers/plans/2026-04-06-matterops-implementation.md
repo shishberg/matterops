@@ -24,7 +24,7 @@
 
 ```bash
 cd /Users/agent/src/matterops
-go mod init github.com/dmcleish91/matterops
+go mod init github.com/shishberg/matterops
 ```
 
 - [ ] **Step 2: Create minimal main.go**
@@ -140,7 +140,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -570,7 +570,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -788,7 +788,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/deploy"
+	"github.com/shishberg/matterops/internal/deploy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -943,8 +943,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/config"
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1008,7 +1008,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/config"
 )
 
 type ServiceState struct {
@@ -1133,7 +1133,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/config"
 )
 ```
 
@@ -1249,7 +1249,7 @@ Add to `internal/service/manager.go`:
 import (
 	"fmt"
 
-	"github.com/dmcleish91/matterops/internal/deploy"
+	"github.com/shishberg/matterops/internal/deploy"
 )
 
 func (m *Manager) RequestDeploy(name string) error {
@@ -1475,7 +1475,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/webhook"
+	"github.com/shishberg/matterops/internal/webhook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1709,7 +1709,7 @@ package bot_test
 import (
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/bot"
+	"github.com/shishberg/matterops/internal/bot"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -2019,8 +2019,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/dashboard"
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/dashboard"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -2180,7 +2180,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/service"
 )
 
 type StateProvider interface {
@@ -2284,7 +2284,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -2409,7 +2409,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -2619,7 +2619,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -2784,7 +2784,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/app"
+	"github.com/shishberg/matterops/internal/app"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2853,11 +2853,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/bot"
-	"github.com/dmcleish91/matterops/internal/config"
-	"github.com/dmcleish91/matterops/internal/dashboard"
-	"github.com/dmcleish91/matterops/internal/service"
-	"github.com/dmcleish91/matterops/internal/webhook"
+	"github.com/shishberg/matterops/internal/bot"
+	"github.com/shishberg/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/dashboard"
+	"github.com/shishberg/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/webhook"
 )
 
 type App struct {
@@ -3058,7 +3058,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dmcleish91/matterops/internal/app"
+	"github.com/shishberg/matterops/internal/app"
 )
 
 func main() {
@@ -3299,8 +3299,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmcleish91/matterops/internal/config"
-	"github.com/dmcleish91/matterops/internal/service"
+	"github.com/shishberg/matterops/internal/config"
+	"github.com/shishberg/matterops/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

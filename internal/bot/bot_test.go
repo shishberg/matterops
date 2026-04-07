@@ -3,7 +3,7 @@ package bot_test
 import (
 	"testing"
 
-	"github.com/dmcleish91/matterops/internal/bot"
+	"github.com/shishberg/matterops/internal/bot"
 	"github.com/stretchr/testify/assert"
 )
 
