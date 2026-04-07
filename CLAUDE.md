@@ -8,7 +8,7 @@
 
 ## Project Structure
 
-- Single Go binary: `cmd/matterops/`
+- Single Go binary: `main.go` at project root (for `go install` support)
 - Internal packages: `internal/{config,service,deploy,bot,webhook,dashboard}`
 - Config: `config.yaml` (global) + `services/*.yaml` (per-service) + `.env` (secrets)
 - `make check` runs lint + test + build

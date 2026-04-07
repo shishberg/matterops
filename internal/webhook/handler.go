@@ -28,7 +28,7 @@ func NewHandler(secret string, trigger DeployTrigger) *Handler {
 
 // ServeHTTP implements http.Handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB limit
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusInternalServerError)
 		return

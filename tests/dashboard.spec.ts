@@ -26,13 +26,13 @@ test.describe('MatterOps Dashboard', () => {
 
   test('clicking a service row toggles output', async ({ page }) => {
     await page.goto('/');
-    const outputPre = page.locator('.output').first();
-    await expect(outputPre).not.toBeVisible();
+    const detailRow = page.locator('.detail-row').first();
+    await expect(detailRow).not.toBeVisible();
 
-    await page.locator('.toggle').first().click();
-    await expect(outputPre).toBeVisible();
+    await page.locator('.expand-btn').first().click();
+    await expect(detailRow).toBeVisible();
 
-    await page.locator('.toggle').first().click();
-    await expect(outputPre).not.toBeVisible();
+    await page.locator('.expand-btn').first().click();
+    await expect(detailRow).not.toBeVisible();
   });
 });

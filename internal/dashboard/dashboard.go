@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bytes"
 	"encoding/json"
 	"html/template"
 	"net/http"
@@ -48,10 +49,13 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
 	states := d.provider.GetAllStates()
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := d.tmpl.Execute(w, states); err != nil {
+	var buf bytes.Buffer
+	if err := d.tmpl.Execute(&buf, states); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (d *Dashboard) handleAPIStatus(w http.ResponseWriter, r *http.Request) {

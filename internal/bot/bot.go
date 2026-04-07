@@ -59,12 +59,16 @@ type Config struct {
 	Handler CommandHandler
 }
 
+// dialFunc is the signature for establishing a WebSocket connection.
+type dialFunc func(ctx context.Context, url string, header http.Header) (*websocket.Conn, error)
+
 // Bot connects to Mattermost via REST and WebSocket and dispatches commands.
 type Bot struct {
 	cfg       Config
 	userID    string
 	channelID string
 	client    *http.Client
+	dial      dialFunc
 }
 
 // New creates a new Bot from the given Config.
@@ -72,7 +76,14 @@ func New(cfg Config) *Bot {
 	return &Bot{
 		cfg:    cfg,
 		client: &http.Client{Timeout: 10 * time.Second},
+		dial:   defaultDial,
 	}
+}
+
+func defaultDial(ctx context.Context, url string, header http.Header) (*websocket.Conn, error) {
+	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	conn, _, err := dialer.DialContext(ctx, url, header)
+	return conn, err
 }
 
 // Run connects to Mattermost, resolves the channel, and listens for events
@@ -91,9 +102,17 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // PostMessage sends a message to the configured Mattermost channel.
 func (b *Bot) PostMessage(ctx context.Context, message string) {
-	body := fmt.Sprintf(`{"channel_id":%q,"message":%q}`, b.channelID, message)
+	payload := map[string]string{
+		"channel_id": b.channelID,
+		"message":    message,
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("bot: marshal post body: %v", err)
+		return
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		b.cfg.URL+"/api/v4/posts", strings.NewReader(body))
+		b.cfg.URL+"/api/v4/posts", strings.NewReader(string(bodyBytes)))
 	if err != nil {
 		log.Printf("bot: create post request: %v", err)
 		return
@@ -207,16 +226,41 @@ type wsPost struct {
 	Message   string `json:"message"`
 }
 
-// listenWebSocket opens a WebSocket connection and processes incoming events.
+const (
+	initialReconnectDelay = 1 * time.Second
+	maxReconnectDelay     = 5 * time.Minute
+)
+
+// listenWebSocket connects and reconnects with exponential backoff until ctx
+// is cancelled. Modelled on the proven pattern in mattermost-bot.
 func (b *Bot) listenWebSocket(ctx context.Context) error {
+	delay := initialReconnectDelay
+	for {
+		err := b.connectAndListen(ctx)
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		log.Printf("bot: websocket disconnected: %v, reconnecting in %v", err, delay)
+		select {
+		case <-time.After(delay):
+			delay = min(delay*2, maxReconnectDelay)
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+// connectAndListen opens a single WebSocket connection and processes events
+// until the connection drops or ctx is cancelled.
+func (b *Bot) connectAndListen(ctx context.Context) error {
 	wsURL := strings.Replace(b.cfg.URL, "https://", "wss://", 1)
 	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
 	wsURL += "/api/v4/websocket"
 
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	header := http.Header{"Authorization": {"Bearer " + b.cfg.Token}}
 
-	conn, _, err := dialer.DialContext(ctx, wsURL, header)
+	conn, err := b.dial(ctx, wsURL, header)
 	if err != nil {
 		return fmt.Errorf("websocket dial: %w", err)
 	}

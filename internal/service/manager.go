@@ -91,6 +91,7 @@ func NewManager(services []config.ServiceConfig, notifier Notifier) (*Manager, e
 
 // SetNotifier sets the notifier after construction. This allows resolving the
 // chicken-and-egg dependency between Manager and the bot-backed Notifier.
+// Must be called before any deploys are requested (i.e. before Run).
 func (m *Manager) SetNotifier(n Notifier) {
 	m.notifier = n
 }

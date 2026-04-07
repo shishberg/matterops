@@ -6,7 +6,7 @@ import (
 )
 
 type pendingConfirmation struct {
-	commit    string
+	branch    string
 	createdAt time.Time
 }
 
@@ -26,11 +26,11 @@ func NewConfirmationTracker(timeout time.Duration) *ConfirmationTracker {
 }
 
 // AddPending registers a pending confirmation for a service. Overwrites any existing entry.
-func (ct *ConfirmationTracker) AddPending(serviceName string, commit string) {
+func (ct *ConfirmationTracker) AddPending(serviceName string, branch string) {
 	ct.mu.Lock()
 	defer ct.mu.Unlock()
 	ct.pending[serviceName] = pendingConfirmation{
-		commit:    commit,
+		branch:    branch,
 		createdAt: time.Now(),
 	}
 }
