@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -242,33 +243,45 @@ func (b *Bot) connectAndListen(ctx context.Context) error {
 }
 
 func (b *Bot) handleEvent(ctx context.Context, event *model.WebSocketEvent) {
+	log.Printf("bot: event type=%s", event.EventType())
+
 	if event.EventType() != model.WebsocketEventPosted {
 		return
 	}
 
 	data := event.GetData()
-	channelID, _ := data["channel_id"].(string)
-	if channelID != b.channelID {
-		return
-	}
+	log.Printf("bot: posted event data keys: %v", dataKeys(data))
 
+	// Check if this message is relevant: either in our channel, or mentions us.
 	postJSON, ok := data["post"].(string)
 	if !ok {
+		log.Printf("bot: no post field in event data")
 		return
 	}
 
 	var post model.Post
 	if err := json.Unmarshal([]byte(postJSON), &post); err != nil {
+		log.Printf("bot: failed to unmarshal post: %v", err)
 		return
 	}
+
+	log.Printf("bot: post channel=%s user=%s message=%q", post.ChannelId, post.UserId, post.Message)
+
 	if post.UserId == b.userID {
 		return // ignore own messages
+	}
+
+	// Filter: must be in our channel OR mention us
+	if post.ChannelId != b.channelID && !b.isMentioned(data) {
+		return
 	}
 
 	cmd := ParseCommand(post.Message)
 	if cmd == nil {
 		return
 	}
+
+	log.Printf("bot: command action=%s service=%s", cmd.Action, cmd.Service)
 
 	var response string
 	switch strings.ToLower(cmd.Action) {
@@ -285,4 +298,25 @@ func (b *Bot) handleEvent(ctx context.Context, event *model.WebSocketEvent) {
 	}
 
 	b.PostMessage(ctx, response)
+}
+
+// isMentioned checks the "mentions" field in the event data for our user ID.
+func (b *Bot) isMentioned(data map[string]any) bool {
+	mentionsStr, ok := data["mentions"].(string)
+	if !ok {
+		return false
+	}
+	var mentions []string
+	if err := json.Unmarshal([]byte(mentionsStr), &mentions); err != nil {
+		return false
+	}
+	return slices.Contains(mentions, b.userID)
+}
+
+func dataKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

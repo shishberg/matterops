@@ -389,7 +389,7 @@ func TestHandleEvent_IgnoresOwnMessages(t *testing.T) {
 	assert.Empty(t, rest.getPosts())
 }
 
-func TestHandleEvent_IgnoresOtherChannels(t *testing.T) {
+func TestHandleEvent_MentionFromOtherChannel(t *testing.T) {
 	handler := &mockCommandHandler{}
 	rest := &mockRestClient{}
 
@@ -400,6 +400,32 @@ func TestHandleEvent_IgnoresOtherChannels(t *testing.T) {
 		channelID: "channel-123",
 	}
 
+	// Message is in a different channel, but mentions the bot by user ID.
+	postJSON := `{"id":"post1","user_id":"other-user","channel_id":"other-channel","message":"@matterops status"}`
+	event := model.NewWebSocketEvent(model.WebsocketEventPosted, "", "other-channel", "", nil, "")
+	event = event.SetData(map[string]any{
+		"channel_id": "other-channel",
+		"post":       postJSON,
+		"mentions":   `["bot-user-id"]`,
+	})
+
+	bot.handleEvent(context.Background(), event)
+
+	assert.Equal(t, "status", handler.getLastAction())
+}
+
+func TestHandleEvent_IgnoresOtherChannelsWithoutMention(t *testing.T) {
+	handler := &mockCommandHandler{}
+	rest := &mockRestClient{}
+
+	bot := &Bot{
+		cfg:       Config{URL: "http://localhost", Handler: handler},
+		rest:      rest,
+		userID:    "bot-user-id",
+		channelID: "channel-123",
+	}
+
+	// Message is in a different channel and does NOT mention the bot.
 	postJSON := `{"id":"post1","user_id":"other-user","channel_id":"other-channel","message":"@matterops status"}`
 	event := model.NewWebSocketEvent(model.WebsocketEventPosted, "", "other-channel", "", nil, "")
 	event = event.SetData(map[string]any{
