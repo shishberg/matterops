@@ -46,6 +46,10 @@ type Manager struct {
 	wg       sync.WaitGroup
 }
 
+// newBackend selects the appropriate backend based on the service config.
+// It is a variable so tests can override it.
+var newBackend = backendForConfig
+
 // backendForConfig selects the appropriate backend based on the service config.
 func backendForConfig(cfg config.ServiceConfig) Backend {
 	if cfg.Process.Cmd != "" {
@@ -72,12 +76,12 @@ func NewManager(services []config.ServiceConfig, notifier Notifier) (*Manager, e
 	}
 
 	for _, svc := range services {
-		backend := backendForConfig(svc)
+		backend := newBackend(svc)
 
 		ms := &managedService{
 			config:   svc,
 			backend:  backend,
-			state:    ServiceState{Status: "stopped"},
+			state:    ServiceState{},
 			deployCh: make(chan struct{}, 1),
 		}
 		m.services[svc.Name] = ms
@@ -106,9 +110,7 @@ func (m *Manager) Stop() {
 func (m *Manager) GetAllStates() map[string]ServiceState {
 	result := make(map[string]ServiceState, len(m.services))
 	for name, ms := range m.services {
-		ms.mu.Lock()
-		result[name] = ms.state
-		ms.mu.Unlock()
+		result[name] = m.liveState(ms)
 	}
 	return result
 }
@@ -119,9 +121,24 @@ func (m *Manager) GetState(name string) (ServiceState, bool) {
 	if !ok {
 		return ServiceState{}, false
 	}
+	return m.liveState(ms), true
+}
+
+// liveState returns the service state with a live status probe from the backend.
+// During transient states (e.g. "deploying"), the cached status is preserved.
+func (m *Manager) liveState(ms *managedService) ServiceState {
 	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	return ms.state, true
+	s := ms.state
+	ms.mu.Unlock()
+
+	if s.Status == "deploying" {
+		return s
+	}
+
+	if status, err := ms.backend.Status(m.ctx); err == nil {
+		s.Status = status
+	}
+	return s
 }
 
 // GetServiceConfig returns the config for a named service.
