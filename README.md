@@ -18,7 +18,13 @@ A single-binary service orchestration bot for a single server. Manages deploymen
 - A Mattermost server with a bot account
 - (Optional) golangci-lint for linting
 
-### Build
+### Install
+
+```bash
+go install github.com/shishberg/matterops@latest
+```
+
+Or build from source:
 
 ```bash
 make build    # produces bin/matterops

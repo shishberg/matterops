@@ -9,10 +9,10 @@ test: ## Run tests
 	go test -race -count=1 ./...
 
 build: ## Build binary
-	go build -o bin/matterops ./cmd/matterops
+	go build -o bin/matterops .
 
 dev: ## Run in dev mode
-	go run ./cmd/matterops --config config.dev.yaml
+	go run . --config config.dev.yaml
 
 playwright: ## Run Playwright dashboard tests
 	npx playwright test
