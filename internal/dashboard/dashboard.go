@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"html/template"
+	"io/fs"
 	"net/http"
-	"path/filepath"
 
 	"github.com/shishberg/matterops/internal/service"
 )
@@ -22,10 +22,9 @@ type Dashboard struct {
 	mux      *http.ServeMux
 }
 
-// New creates a Dashboard, parsing the index.html template from templatesDir.
-func New(provider StateProvider, templatesDir string) (*Dashboard, error) {
-	tmplPath := filepath.Join(templatesDir, "index.html")
-	tmpl, err := template.ParseFiles(tmplPath)
+// New creates a Dashboard, parsing the index.html template from the given filesystem.
+func New(provider StateProvider, templatesFS fs.FS) (*Dashboard, error) {
+	tmpl, err := template.ParseFS(templatesFS, "index.html")
 	if err != nil {
 		return nil, err
 	}

@@ -46,20 +46,10 @@ process:
 	envPath := filepath.Join(dir, ".env")
 	require.NoError(t, os.WriteFile(envPath, []byte(envContent), 0600))
 
-	// Use the real templates directory (relative to repo root)
 	repoRoot := findRepoRoot(t)
-	templatesDir := filepath.Join(repoRoot, "templates")
+	templatesFS := os.DirFS(filepath.Join(repoRoot, "templates"))
 
-	// Change working directory so "templates" resolves correctly
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(repoRoot))
-	defer func() {
-		require.NoError(t, os.Chdir(origDir))
-	}()
-	_ = templatesDir // dashboard.New uses "templates" relative to cwd
-
-	a, err := app.New(cfgPath, envPath)
+	a, err := app.New(cfgPath, envPath, templatesFS)
 	require.NoError(t, err)
 	defer a.Shutdown()
 }

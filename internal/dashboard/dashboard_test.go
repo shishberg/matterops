@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestDashboard_RendersServices(t *testing.T) {
 		},
 	}
 
-	d, err := dashboard.New(provider, "../../templates")
+	d, err := dashboard.New(provider, os.DirFS("../../templates"))
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -61,7 +62,7 @@ func TestDashboard_JSONEndpoint(t *testing.T) {
 		},
 	}
 
-	d, err := dashboard.New(provider, "../../templates")
+	d, err := dashboard.New(provider, os.DirFS("../../templates"))
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)

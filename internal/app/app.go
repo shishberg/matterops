@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"strings"
@@ -54,7 +55,8 @@ type App struct {
 }
 
 // New loads config and env, creates all components, and returns a ready App.
-func New(configPath string, envPath string) (*App, error) {
+// templatesFS must contain index.html at its root.
+func New(configPath string, envPath string, templatesFS fs.FS) (*App, error) {
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
@@ -92,7 +94,7 @@ func New(configPath string, envPath string) (*App, error) {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	dash, err := dashboard.New(a.manager, "templates")
+	dash, err := dashboard.New(a.manager, templatesFS)
 	if err != nil {
 		return nil, fmt.Errorf("creating dashboard: %w", err)
 	}
