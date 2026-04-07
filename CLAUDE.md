@@ -3,7 +3,7 @@
 ## Implementation Rules
 
 - **Strict TDD**: Write failing tests first, then implement the minimum code to make them pass, then refactor. No production code without a failing test driving it.
-- **Commit after every step**: Each implementation step gets its own commit with a meaningful message describing what was added/changed and why.
+- **Commit and push after every step**: Each implementation step gets its own commit with a meaningful message describing what was added/changed and why. Always push immediately after committing — do not wait to be asked.
 - **Simplicity over cleverness**: Prefer simple, readable code. Use well-established Go packages and patterns (e.g. `net/http`, `gopkg.in/yaml.v3`, `godotenv`, `testify`) over rolling your own. If a standard library or popular package solves the problem, use it. No NIH syndrome.
 
 ## Project Structure
