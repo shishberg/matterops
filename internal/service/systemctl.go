@@ -9,29 +9,38 @@ import (
 
 // SystemctlBackend manages a systemd service unit via systemctl.
 type SystemctlBackend struct {
-	unit string
+	unit     string
+	userMode bool
 }
 
 // NewSystemctlBackend returns a Backend that controls the given systemd unit.
-func NewSystemctlBackend(unit string) *SystemctlBackend {
-	return &SystemctlBackend{unit: unit}
+// If userMode is true, all commands include the --user flag.
+func NewSystemctlBackend(unit string, userMode bool) *SystemctlBackend {
+	return &SystemctlBackend{unit: unit, userMode: userMode}
+}
+
+func (s *SystemctlBackend) systemctl(ctx context.Context, args ...string) *exec.Cmd {
+	if s.userMode {
+		args = append([]string{"--user"}, args...)
+	}
+	return exec.CommandContext(ctx, "systemctl", args...)
 }
 
 func (s *SystemctlBackend) Start(ctx context.Context) error {
-	return exec.CommandContext(ctx, "systemctl", "start", s.unit).Run()
+	return s.systemctl(ctx, "start", s.unit).Run()
 }
 
 func (s *SystemctlBackend) Stop(ctx context.Context) error {
-	return exec.CommandContext(ctx, "systemctl", "stop", s.unit).Run()
+	return s.systemctl(ctx, "stop", s.unit).Run()
 }
 
 func (s *SystemctlBackend) Restart(ctx context.Context) error {
-	return exec.CommandContext(ctx, "systemctl", "restart", s.unit).Run()
+	return s.systemctl(ctx, "restart", s.unit).Run()
 }
 
 // Status returns "running", "stopped", or "failed" based on systemctl is-active output.
 func (s *SystemctlBackend) Status(ctx context.Context) (string, error) {
-	out, err := exec.CommandContext(ctx, "systemctl", "is-active", s.unit).Output()
+	out, err := s.systemctl(ctx, "is-active", s.unit).Output()
 	state := strings.TrimSpace(string(out))
 
 	if err != nil {

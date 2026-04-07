@@ -9,7 +9,16 @@ import (
 )
 
 func TestSystemctlBackend_CommandFormation(t *testing.T) {
-	b := service.NewSystemctlBackend("myapp")
+	b := service.NewSystemctlBackend("myapp", false)
+	assert.Implements(t, (*service.Backend)(nil), b)
+	_, err := b.Status(context.Background())
+	if err != nil {
+		assert.Contains(t, err.Error(), "systemctl")
+	}
+}
+
+func TestSystemctlBackend_UserMode(t *testing.T) {
+	b := service.NewSystemctlBackend("myapp", true)
 	assert.Implements(t, (*service.Backend)(nil), b)
 	_, err := b.Status(context.Background())
 	if err != nil {

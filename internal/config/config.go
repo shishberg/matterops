@@ -59,6 +59,7 @@ type ServiceConfig struct {
 	Deploy              []string      `yaml:"deploy"`
 	Process             ProcessConfig `yaml:"process"`
 	ServiceName         string        `yaml:"service_name"`
+	UserService         bool          `yaml:"user_service"`
 	RequireConfirmation bool          `yaml:"require_confirmation"`
 }
 

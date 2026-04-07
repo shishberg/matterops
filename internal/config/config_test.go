@@ -98,6 +98,7 @@ deploy:
   - "git pull origin main"
   - "go build -o bin/api ."
 service_name: api
+user_service: true
 require_confirmation: true
 `), 0644)
 	require.NoError(t, err)
@@ -112,6 +113,7 @@ require_confirmation: true
 	assert.Equal(t, "main", api.Branch)
 	assert.Equal(t, "github.com/org/api", api.Repo)
 	assert.Equal(t, "api", api.ServiceName)
+	assert.True(t, api.UserService)
 	assert.True(t, api.RequireConfirmation)
 
 	myapp := findService(services, "myapp")

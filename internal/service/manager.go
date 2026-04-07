@@ -55,7 +55,7 @@ func backendForConfig(cfg config.ServiceConfig) Backend {
 		if runtime.GOOS == "darwin" {
 			return NewLaunchctlBackend(cfg.ServiceName)
 		}
-		return NewSystemctlBackend(cfg.ServiceName)
+		return NewSystemctlBackend(cfg.ServiceName, cfg.UserService)
 	}
 	// Fallback
 	return NewProcessBackend("echo no backend configured", cfg.WorkingDir)
