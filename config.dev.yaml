@@ -1,6 +1,6 @@
 mattermost:
   url: "http://localhost:8065"
-  channel: "ops"
+  channel: "myteam/town-square"  # "team/channel-name" format (the URL slug, not the display name)
 
 webhook:
   port: 8080

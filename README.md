@@ -38,7 +38,7 @@ make build    # produces bin/matterops
 # config.yaml
 mattermost:
   url: "https://mattermost.example.com"
-  channel: "ops"
+  channel: "myteam/ops"  # "team/channel-name" (URL slugs, not display names)
 
 webhook:
   port: 8080

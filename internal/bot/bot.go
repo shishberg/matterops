@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/mattermost/mattermost/server/public/model"
 )
 
 // Command represents a parsed bot command.
@@ -59,31 +58,70 @@ type Config struct {
 	Handler CommandHandler
 }
 
-// dialFunc is the signature for establishing a WebSocket connection.
-type dialFunc func(ctx context.Context, url string, header http.Header) (*websocket.Conn, error)
+// restClient abstracts the Mattermost REST API methods we use.
+type restClient interface {
+	GetMe(ctx context.Context, etag string) (*model.User, *model.Response, error)
+	CreatePost(ctx context.Context, post *model.Post) (*model.Post, *model.Response, error)
+	GetChannel(ctx context.Context, channelId string) (*model.Channel, *model.Response, error)
+	GetChannelByNameForTeamName(ctx context.Context, channelName, teamName string, etag string) (*model.Channel, *model.Response, error)
+}
 
-// Bot connects to Mattermost via REST and WebSocket and dispatches commands.
+// wsClient abstracts the Mattermost WebSocket client for testability.
+type wsClient interface {
+	Listen()
+	Close()
+	EventChan() chan *model.WebSocketEvent
+	PingTimeoutChan() chan bool
+	GetListenError() *model.AppError
+}
+
+// realWSClient wraps model.WebSocketClient to implement wsClient.
+type realWSClient struct {
+	client *model.WebSocketClient
+}
+
+func (r *realWSClient) Listen() { r.client.Listen() }
+func (r *realWSClient) Close()  { r.client.Close() }
+
+func (r *realWSClient) EventChan() chan *model.WebSocketEvent { return r.client.EventChannel }
+func (r *realWSClient) PingTimeoutChan() chan bool            { return r.client.PingTimeoutChannel }
+func (r *realWSClient) GetListenError() *model.AppError       { return r.client.ListenError }
+
+// wsConnectFunc creates a new WebSocket client connection.
+type wsConnectFunc func(url, token string) (wsClient, error)
+
+const (
+	initialReconnectDelay = 1 * time.Second
+	maxReconnectDelay     = 5 * time.Minute
+)
+
+// Bot connects to Mattermost via the SDK and dispatches commands.
 type Bot struct {
 	cfg       Config
 	userID    string
 	channelID string
-	client    *http.Client
-	dial      dialFunc
+	rest      restClient
+	connectWS wsConnectFunc
 }
 
 // New creates a new Bot from the given Config.
 func New(cfg Config) *Bot {
-	return &Bot{
-		cfg:    cfg,
-		client: &http.Client{Timeout: 10 * time.Second},
-		dial:   defaultDial,
-	}
-}
+	client := model.NewAPIv4Client(cfg.URL)
+	client.SetToken(cfg.Token)
 
-func defaultDial(ctx context.Context, url string, header http.Header) (*websocket.Conn, error) {
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	conn, _, err := dialer.DialContext(ctx, url, header)
-	return conn, err
+	return &Bot{
+		cfg:  cfg,
+		rest: client,
+		connectWS: func(url, token string) (wsClient, error) {
+			wsURL := strings.Replace(url, "https://", "wss://", 1)
+			wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
+			c, err := model.NewWebSocketClient4(wsURL, token)
+			if err != nil {
+				return nil, err
+			}
+			return &realWSClient{client: c}, nil
+		},
+	}
 }
 
 // Run connects to Mattermost, resolves the channel, and listens for events
@@ -102,134 +140,54 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // PostMessage sends a message to the configured Mattermost channel.
 func (b *Bot) PostMessage(ctx context.Context, message string) {
-	payload := map[string]string{
-		"channel_id": b.channelID,
-		"message":    message,
+	post := &model.Post{
+		ChannelId: b.channelID,
+		Message:   message,
 	}
-	bodyBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("bot: marshal post body: %v", err)
-		return
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		b.cfg.URL+"/api/v4/posts", strings.NewReader(string(bodyBytes)))
-	if err != nil {
-		log.Printf("bot: create post request: %v", err)
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+b.cfg.Token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := b.client.Do(req)
-	if err != nil {
+	if _, _, err := b.rest.CreatePost(ctx, post); err != nil {
 		log.Printf("bot: post message: %v", err)
-		return
-	}
-	if err := resp.Body.Close(); err != nil {
-		log.Printf("bot: close post response body: %v", err)
 	}
 }
 
 // resolveIdentity fetches the bot's own user ID from the REST API.
 func (b *Bot) resolveIdentity(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		b.cfg.URL+"/api/v4/users/me", nil)
+	user, _, err := b.rest.GetMe(ctx, "")
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+b.cfg.Token)
-
-	resp, err := b.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("bot: close identity response body: %v", cerr)
-		}
-	}()
-
-	var user struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return fmt.Errorf("decoding user response: %w", err)
-	}
-	if user.ID == "" {
+	if user.Id == "" {
 		return fmt.Errorf("empty user ID (check token)")
 	}
-	b.userID = user.ID
+	b.userID = user.Id
 	return nil
 }
 
 // resolveChannel finds the channel ID for the configured channel name.
+// Accepts "team/channel-name" (looked up via API) or a raw 26-char channel ID.
 func (b *Bot) resolveChannel(ctx context.Context) error {
-	// Channel name may be "team/channel" or just "channel-name-with-id".
-	// Try direct lookup by name: GET /api/v4/channels/name/{team}/{channel}
-	// For simplicity, accept either "teamname/channelname" or a raw channel ID.
 	if strings.Contains(b.cfg.Channel, "/") {
 		parts := strings.SplitN(b.cfg.Channel, "/", 2)
-		return b.resolveChannelByName(ctx, parts[0], parts[1])
-	}
-	// Treat as a raw channel ID.
-	b.channelID = b.cfg.Channel
-	return nil
-}
-
-func (b *Bot) resolveChannelByName(ctx context.Context, team, channel string) error {
-	url := fmt.Sprintf("%s/api/v4/teams/name/%s/channels/name/%s",
-		b.cfg.URL, team, channel)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+b.cfg.Token)
-
-	resp, err := b.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("bot: close channel response body: %v", cerr)
+		ch, _, err := b.rest.GetChannelByNameForTeamName(ctx, parts[1], parts[0], "")
+		if err != nil {
+			return fmt.Errorf("looking up channel %q in team %q: %w", parts[1], parts[0], err)
 		}
-	}()
+		b.channelID = ch.Id
+		log.Printf("bot: resolved channel %q to ID %s", b.cfg.Channel, ch.Id)
+		return nil
+	}
 
-	var ch struct {
-		ID string `json:"id"`
+	if !model.IsValidId(b.cfg.Channel) {
+		return fmt.Errorf("invalid channel %q: use \"team/channel-name\" format or a 26-char channel ID", b.cfg.Channel)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&ch); err != nil {
-		return fmt.Errorf("decoding channel response: %w", err)
+
+	// Validate the ID actually exists.
+	ch, _, err := b.rest.GetChannel(ctx, b.cfg.Channel)
+	if err != nil {
+		return fmt.Errorf("looking up channel ID %q: %w", b.cfg.Channel, err)
 	}
-	if ch.ID == "" {
-		return fmt.Errorf("channel %q not found in team %q", channel, team)
-	}
-	b.channelID = ch.ID
+	b.channelID = ch.Id
 	return nil
 }
-
-// wsEvent is the minimal shape of a Mattermost WebSocket event payload.
-type wsEvent struct {
-	Event string          `json:"event"`
-	Data  json.RawMessage `json:"data"`
-}
-
-type wsPostData struct {
-	Post      string `json:"post"` // JSON-encoded post object
-	ChannelID string `json:"channel_id"`
-}
-
-type wsPost struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	ChannelID string `json:"channel_id"`
-	Message   string `json:"message"`
-}
-
-const (
-	initialReconnectDelay = 1 * time.Second
-	maxReconnectDelay     = 5 * time.Minute
-)
 
 // listenWebSocket connects and reconnects with exponential backoff until ctx
 // is cancelled. Modelled on the proven pattern in mattermost-bot.
@@ -254,73 +212,56 @@ func (b *Bot) listenWebSocket(ctx context.Context) error {
 // connectAndListen opens a single WebSocket connection and processes events
 // until the connection drops or ctx is cancelled.
 func (b *Bot) connectAndListen(ctx context.Context) error {
-	wsURL := strings.Replace(b.cfg.URL, "https://", "wss://", 1)
-	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
-	wsURL += "/api/v4/websocket"
-
-	header := http.Header{"Authorization": {"Bearer " + b.cfg.Token}}
-
-	conn, err := b.dial(ctx, wsURL, header)
+	ws, err := b.connectWS(b.cfg.URL, b.cfg.Token)
 	if err != nil {
-		return fmt.Errorf("websocket dial: %w", err)
+		return fmt.Errorf("websocket connect: %w", err)
 	}
-	defer func() {
-		if cerr := conn.Close(); cerr != nil {
-			log.Printf("bot: close websocket: %v", cerr)
-		}
-	}()
+	defer ws.Close()
 
+	ws.Listen()
 	log.Printf("bot: connected to %s, watching channel %s", b.cfg.URL, b.channelID)
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			_, msg, err := conn.ReadMessage()
-			if err != nil {
-				if ctx.Err() == nil {
-					log.Printf("bot: websocket read: %v", err)
-				}
-				return
-			}
-			b.handleWSMessage(ctx, msg)
-		}
-	}()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
 
-	select {
-	case <-ctx.Done():
-		if err := conn.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
-			log.Printf("bot: send close frame: %v", err)
+		case event := <-ws.EventChan():
+			if event != nil {
+				b.handleEvent(ctx, event)
+			}
+
+		case <-ws.PingTimeoutChan():
+			return fmt.Errorf("ping timeout")
 		}
-		return nil
-	case <-done:
-		return fmt.Errorf("websocket closed unexpectedly")
+
+		if listenErr := ws.GetListenError(); listenErr != nil {
+			return fmt.Errorf("listen error: %w", listenErr)
+		}
 	}
 }
 
-func (b *Bot) handleWSMessage(ctx context.Context, raw []byte) {
-	var ev wsEvent
-	if err := json.Unmarshal(raw, &ev); err != nil {
-		return
-	}
-	if ev.Event != "posted" {
+func (b *Bot) handleEvent(ctx context.Context, event *model.WebSocketEvent) {
+	if event.EventType() != model.WebsocketEventPosted {
 		return
 	}
 
-	var data wsPostData
-	if err := json.Unmarshal(ev.Data, &data); err != nil {
-		return
-	}
-	if data.ChannelID != b.channelID {
+	data := event.GetData()
+	channelID, _ := data["channel_id"].(string)
+	if channelID != b.channelID {
 		return
 	}
 
-	var post wsPost
-	if err := json.Unmarshal([]byte(data.Post), &post); err != nil {
+	postJSON, ok := data["post"].(string)
+	if !ok {
 		return
 	}
-	if post.UserID == b.userID {
+
+	var post model.Post
+	if err := json.Unmarshal([]byte(postJSON), &post); err != nil {
+		return
+	}
+	if post.UserId == b.userID {
 		return // ignore own messages
 	}
 
